@@ -12,4 +12,10 @@ Extremely low cost 2 node Kubernetes cluster setup with Kubeadm running ubuntu 1
 
 4. Do a Kubectl get nodes from the master node terminal - you should see the 2 node cluster ready now!
 
-The Kubernetes cluster is installed using kubeadm and networking plugin installed is calico.
+5. To delete the cluster, delete the CloudFormation stack.
+
+Note that the Kubernetes cluster is installed using the kubeadm tool. The container runtime installed is docker and the networking plugin is calico.
+
+Enjoy & use at your own risk! if you have questions, email me at dhiman.halder@gmail.com
+
+This project is licensed under the terms of the MIT license.
