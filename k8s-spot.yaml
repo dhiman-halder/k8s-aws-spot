@@ -1,0 +1,302 @@
+
+Description:  This template deploys a 2 node kubernetes cluster with spot instances in a VPC with a single public subnet in 1 AZ. The master node is t3a.small and worker node is t3a.micro
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: k8s
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: k8s
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: k8s public subnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: k8s public routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  SpotFleetMaster:
+    Type: AWS::EC2::SpotFleet
+    DependsOn:
+    - SpotFleetRole
+    - InstanceSecurityGroup
+    Properties:
+      SpotFleetRequestConfigData:
+        IamFleetRole:
+          Fn::GetAtt:
+          - SpotFleetRole
+          - Arn
+        LaunchSpecifications:
+        - ImageId: ami-04763b3055de4860b
+          InstanceType: t3a.small
+          KeyName:
+            Ref: KeyName
+          SecurityGroups:
+          - GroupId:
+              Ref: InstanceSecurityGroup
+          SubnetId: !Ref PublicSubnet1
+          TagSpecifications:
+          - ResourceType: instance
+            Tags:
+            - Key: Name
+              Value: master
+          UserData:
+            Fn::Base64: |
+              #!/bin/bash -xe
+              hostnamectl set-hostname master
+              echo master > /etc/hostname
+              echo "127.0.0.1 master" >> /etc/hosts
+              swapoff -a
+              # Install Docker CE
+              ## Set up the repository:
+              ### Install packages to allow apt to use a repository over HTTPS
+              apt-get update && apt-get install -y \
+                apt-transport-https ca-certificates curl software-properties-common
+              ### Add Docker’s official GPG key
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+              ### Add Docker apt repository.
+              add-apt-repository \
+                "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+                $(lsb_release -cs) \
+                stable"
+              ## Install Docker CE.
+              apt-get update && apt-get install -y \
+                containerd.io=1.2.10-3 \
+                docker-ce=5:19.03.4~3-0~ubuntu-$(lsb_release -cs) \
+                docker-ce-cli=5:19.03.4~3-0~ubuntu-$(lsb_release -cs)
+              # Setup daemon.
+              cat > /etc/docker/daemon.json <<EOF
+              {
+                "exec-opts": ["native.cgroupdriver=systemd"],
+                "log-driver": "json-file",
+                "log-opts": {
+                  "max-size": "100m"
+                },
+                "storage-driver": "overlay2"
+              }
+              EOF
+              mkdir -p /etc/systemd/system/docker.service.d
+              # Restart docker.
+              systemctl daemon-reload
+              systemctl restart docker
+              sleep 30
+              apt-get update && apt-get install -y apt-transport-https curl
+              curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+              cat <<EOF | tee /etc/apt/sources.list.d/kubernetes.list
+              deb https://apt.kubernetes.io/ kubernetes-xenial main
+              EOF
+              apt-get update
+              apt-get install -y kubelet kubeadm kubectl
+              kubeadm init --pod-network-cidr=192.168.0.0/16
+              UBUNTU_HOME=/home/ubuntu
+              mkdir -p $UBUNTU_HOME/.kube
+              cp -i /etc/kubernetes/admin.conf $UBUNTU_HOME/.kube/config
+              chown -R ubuntu:ubuntu $UBUNTU_HOME/.kube/config
+              export KUBECONFIG=/etc/kubernetes/admin.conf
+              kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule-
+              kubectl apply -f https://docs.projectcalico.org/v3.8/manifests/calico.yaml
+              echo -n 'sudo ' > $UBUNTU_HOME/join.txt
+              kubeadm token create --print-join-command >> $UBUNTU_HOME/join.txt
+
+        TargetCapacity: 1
+        TerminateInstancesWithExpiration: true
+        Type: request
+
+  SpotFleetWorker:
+    Type: AWS::EC2::SpotFleet
+    DependsOn:
+    - SpotFleetRole
+    - InstanceSecurityGroup
+    Properties:
+      SpotFleetRequestConfigData:
+        IamFleetRole:
+          Fn::GetAtt:
+          - SpotFleetRole
+          - Arn
+        LaunchSpecifications:
+        - ImageId: ami-04763b3055de4860b
+          InstanceType: t3a.micro
+          KeyName:
+            Ref: KeyName
+          SecurityGroups:
+          - GroupId:
+              Ref: InstanceSecurityGroup
+          SubnetId: !Ref PublicSubnet1
+          TagSpecifications:
+          - ResourceType: instance
+            Tags:
+            - Key: Name
+              Value: node01
+          UserData:
+            Fn::Base64: |
+              #!/bin/bash -xe
+              hostnamectl set-hostname node01
+              echo node01 > /etc/hostname
+              echo "127.0.0.1 node01" >> /etc/hosts
+              swapoff -a
+              # Install Docker CE
+              ## Set up the repository:
+              ### Install packages to allow apt to use a repository over HTTPS
+              apt-get update && apt-get install -y \
+                apt-transport-https ca-certificates curl software-properties-common
+              ### Add Docker’s official GPG key
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+              ### Add Docker apt repository.
+              add-apt-repository \
+                "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+                $(lsb_release -cs) \
+                stable"
+              ## Install Docker CE.
+              apt-get update && apt-get install -y \
+                containerd.io=1.2.10-3 \
+                docker-ce=5:19.03.4~3-0~ubuntu-$(lsb_release -cs) \
+                docker-ce-cli=5:19.03.4~3-0~ubuntu-$(lsb_release -cs)
+              # Setup daemon.
+              cat > /etc/docker/daemon.json <<EOF
+              {
+                "exec-opts": ["native.cgroupdriver=systemd"],
+                "log-driver": "json-file",
+                "log-opts": {
+                  "max-size": "100m"
+                },
+                "storage-driver": "overlay2"
+              }
+              EOF
+              mkdir -p /etc/systemd/system/docker.service.d
+              # Restart docker.
+              systemctl daemon-reload
+              systemctl restart docker
+              apt-get update && apt-get install -y apt-transport-https curl
+              curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+              cat <<EOF | tee /etc/apt/sources.list.d/kubernetes.list
+              deb https://apt.kubernetes.io/ kubernetes-xenial main
+              EOF
+              apt-get update
+              apt-get install -y kubelet kubeadm kubectl
+
+        TargetCapacity: 1
+        TerminateInstancesWithExpiration: true
+        Type: request
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+  SecurityGroupIngressRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: InstanceSecurityGroup
+    Properties:
+      GroupId:
+        Ref: InstanceSecurityGroup
+      IpProtocol: -1
+      FromPort: '0'
+      ToPort: '65535'
+      SourceSecurityGroupId:
+        Ref: InstanceSecurityGroup
+  SpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - spotfleet.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      -
+        PolicyName: aws-ec2-spot-fleet-custom-policy
+        PolicyDocument:
+          # This policy defines what the users can actually do
+          # With Cloudformation
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:DescribeImages
+            - ec2:DescribeSubnets
+            - ec2:RequestSpotInstances
+            - ec2:TerminateInstances
+            - ec2:DescribeInstanceStatus
+            - ec2:CreateTags
+            Resource:
+            - "*"
+          - Effect: Allow
+            Action: iam:PassRole
+            Condition:
+              StringEquals:
+                iam:PassedToService:
+                - ec2.amazonaws.com
+                - ec2.amazonaws.com.cn
+            Resource:
+            - "*"
+          - Effect: Allow
+            Action:
+            - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+            Resource:
+            - arn:aws:elasticloadbalancing:*:*:loadbalancer/*
+          - Effect: Allow
+            Action:
+            - elasticloadbalancing:RegisterTargets
+            Resource:
+            - "*"
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
