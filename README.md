@@ -1,8 +1,8 @@
 # k8s-aws-spot
 
-Kubernetes cluster with Kubeadm with 2 ubuntu 16.04+ based EC2 nodes running spot instances
+Extremely low cost 2 node Kubernetes cluster setup with Kubeadm running ubuntu 16.04+ based EC2 spot instances. Master node is t3a.small and Worker node is t3a.micro. Per hour running cost for the 2 instances is typically less than 1 cent an hour!
 
-Instructions
+## Instructions
 
 1. Deploy the CloudFormation Template. As a pre-requisite you need to have an EC2 Key pair. Choose that as a parameter during the run.
 
@@ -12,4 +12,4 @@ Instructions
 
 4. Do a Kubectl get nodes from the master node - you should see the 2 node cluster ready now!
 
-The Kubernetes cluster is installed using kubeadm and Calico is used as the networking plugin.
+The Kubernetes cluster is installed using kubeadm and networking plugin installed is calico.
