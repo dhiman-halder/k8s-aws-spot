@@ -1,6 +1,6 @@
 # k8s-aws-spot
 
-Extremely low cost 2 node Kubernetes cluster setup with Kubeadm running ubuntu 16.04+ based EC2 spot instances. Master node is t3a.small and Worker node is t3a.micro. Per hour running cost for the 2 instances is typically less than 1 cent an hour!
+Extremely low cost 2 node Kubernetes cluster setup with Kubeadm running ubuntu 16.04+ based EC2 spot instances. Master node is t3a.small and Worker node is t3a.micro. Per hour running cost for the 2 instances combined is typically less than 1 cent an hour!
 
 ## Instructions
 
