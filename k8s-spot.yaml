@@ -134,6 +134,8 @@ Resources:
               EOF
               apt-get update
               apt-get install -y kubelet kubeadm kubectl
+              systemctl daemon-reload
+              systemctl restart kubelet
               kubeadm init --pod-network-cidr=192.168.0.0/16
               UBUNTU_HOME=/home/ubuntu
               mkdir -p $UBUNTU_HOME/.kube
@@ -220,7 +222,8 @@ Resources:
               EOF
               apt-get update
               apt-get install -y kubelet kubeadm kubectl
-
+              systemctl daemon-reload
+              systemctl restart kubelet
         TargetCapacity: 1
         TerminateInstancesWithExpiration: true
         Type: request
