@@ -238,10 +238,6 @@ Resources:
         FromPort: '22'
         ToPort: '22'
         CidrIp: 0.0.0.0/0
-      - IpProtocol: -1
-        FromPort: -1
-        ToPort: -1
-        SourceSecurityGroupId: !Ref SecurityGroupIngress  
   SecurityGroupIngressRule:
     Type: AWS::EC2::SecurityGroupIngress
     DependsOn: InstanceSecurityGroup
