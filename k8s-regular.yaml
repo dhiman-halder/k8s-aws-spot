@@ -138,7 +138,6 @@ Resources:
             kubectl apply -f https://docs.projectcalico.org/v3.8/manifests/calico.yaml
             echo -n 'sudo ' > $UBUNTU_HOME/join.txt
             kubeadm token create --print-join-command >> $UBUNTU_HOME/join.txt
-
   Worker:
     Type: AWS::EC2::Instance
     DependsOn:
@@ -204,8 +203,7 @@ Resources:
             apt-get update
             apt-get install -y kubelet kubeadm kubectl
             systemctl daemon-reload
-            systemctl restart kubelet
-  
+            systemctl restart kubelet 
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     DependsOn: VPC
@@ -232,7 +230,6 @@ Resources:
       ToPort: '65535'
       SourceSecurityGroupId:
         Ref: InstanceSecurityGroup
-
 Outputs:
   VPC:
     Description: A reference to the created VPC
