@@ -68,7 +68,7 @@ Resources:
       InstanceType: t3a.small
       KeyName:
         Ref: KeyName
-      SecurityGroups:
+      SecurityGroupIds:
       - !Ref InstanceSecurityGroup  
       SubnetId: !Ref PublicSubnet1
       Tags:
@@ -141,7 +141,7 @@ Resources:
       InstanceType: t3a.micro
       KeyName:
         Ref: KeyName
-      SecurityGroups:
+      SecurityGroupIds:
       - !Ref InstanceSecurityGroup
       SubnetId: !Ref PublicSubnet1
       Tags:
