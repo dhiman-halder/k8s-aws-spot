@@ -74,9 +74,7 @@ Resources:
         - GroupId:
             Ref: InstanceSecurityGroup
         SubnetId: !Ref PublicSubnet1
-        TagSpecifications:
-        - ResourceType: instance
-          Tags:
+        Tags:
           - Key: Name
             Value: master
         UserData:
@@ -152,9 +150,7 @@ Resources:
         - GroupId:
             Ref: InstanceSecurityGroup
         SubnetId: !Ref PublicSubnet1
-        TagSpecifications:
-        - ResourceType: instance
-          Tags:
+        Tags:
           - Key: Name
             Value: node01
         UserData:
