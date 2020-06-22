@@ -140,7 +140,7 @@ Resources:
             kubeadm token create --print-join-command >> $UBUNTU_HOME/join.txt
 
   Worker:
-    Type: AWS::EC2::SpotFleet
+    Type: AWS::EC2::Instance
     DependsOn:
     - InstanceSecurityGroup
     Properties:
