@@ -69,8 +69,7 @@ Resources:
       KeyName:
         Ref: KeyName
       SecurityGroups:
-      - GroupId:
-          Ref: InstanceSecurityGroup
+      - !Ref InstanceSecurityGroup  
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
@@ -143,8 +142,7 @@ Resources:
       KeyName:
         Ref: KeyName
       SecurityGroups:
-      - GroupId:
-          Ref: InstanceSecurityGroup
+      - !Ref InstanceSecurityGroup
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
